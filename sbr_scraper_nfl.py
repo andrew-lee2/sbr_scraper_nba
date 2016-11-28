@@ -6,34 +6,60 @@ from bs4 import BeautifulSoup
 import datetime
 from datetime import date
 import time
-from pandas import DataFrame
+import pandas as pd
+
+# Andrew Lee
+# 11.27.16
+# nfl mod for sbr scraper
 
 def connectTor():
 ## Connect to Tor for privacy purposes
+# will need to change this
     socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, '127.0.0.1', 9150, True)
     socket.socket = socks.socksocket
     print("connected to Tor!")
 
-def soup_url(type_of_line, tdate = str(date.today()).replace('-','')):
+def soup_url(type_of_line, period_of_game, tdate=str(date.today()).replace('-', '')):
 ## get html code for odds based on desired line type and date
+# most likely will need to change function to just accept a date
 
-    web_url = dict()
-    web_url['ML'] = ''
-    web_url['RL'] = 'pointspread/'
-    web_url['total'] = 'totals/'
-    web_url['1H'] = '1st-half/'
-    web_url['1HRL'] = 'pointspread/1st-half'
-    web_url['1Htotal'] = 'totals/1st-half'
-    url_addon = web_url[type_of_line]
-    tdate = '20160925'
-    url = 'http://www.sportsbookreview.com/betting-odds/mlb-baseball/' \
-         + url_addon + '?date=' + tdate
-    # print (url)
+# moneyline
+# http://www.sportsbookreview.com/betting-odds/nfl-football/money-line/?date=20161127
+# http://www.sportsbookreview.com/betting-odds/nfl-football/money-line/1st-half/?date=20161127
+
+# point spread
+# http://www.sportsbookreview.com/betting-odds/nfl-football/?date=20161127
+# http://www.sportsbookreview.com/betting-odds/nfl-football/1st-half/?date=20161127
+
+# totals
+# http://www.sportsbookreview.com/betting-odds/nfl-football/totals/?date=20161127
+# http://www.sportsbookreview.com/betting-odds/nfl-football/totals/1st-half/?date=20161127
+
+    web_dict = {
+        'spread' : '',
+        'mline' : 'money-line/',
+        'total' : 'totals/',
+        'full' : '',
+        'first_half' : '1st-half/',
+        'second_half' : '2nd-half/'
+        }
+
+    url_gametype = web_dict[type_of_line]
+    url_time_period = web_dict[period_of_game]
+
+    # for testing:
+    # tdate = '20160925'
+    url = 'http://www.sportsbookreview.com/betting-odds/nfl-football/' +  \
+        url_gametype + url_time_period + '?date=' + tdate
+    print (url)
     now = datetime.datetime.now()
     raw_data = requests.get(url)
     soup_big = BeautifulSoup(raw_data.text, 'html.parser')
-    soup = soup_big.find_all('div', id='OddsGridModule_3')[0]
-    timestamp = time.strftime("%H:%M:%S")
+    # export soup_big and figure out whats going on for nfl
+    # print (soup_big)
+    # the oddsgridmodule might change mlb = 3 nlf = 16
+    soup = soup_big.find_all('div', id='OddsGridModule_16')[0]
+    timestamp = now.strftime("%H:%M:%S")
 
     return soup, timestamp
 
@@ -59,7 +85,7 @@ def parse_and_write_data(soup, date, time, not_ML=True):
     999991  SIA
     '''
     if not_ML:
-        df = DataFrame(
+        df = pd.DataFrame(
                 columns=('key','date','time','H/A',
                          'team','pitcher','hand',
                          'opp_team','opp_pitcher',
@@ -70,7 +96,7 @@ def parse_and_write_data(soup, date, time, not_ML=True):
                          'bovada_line','bovada_odds',
                          'betonline_line','betonline_odds'))
     else:
-        df = DataFrame(
+        df = pd.DataFrame(
             columns=('key','date','time','H/A',
                      'team','pitcher','hand',
                      'opp_team','opp_pitcher',
@@ -85,13 +111,13 @@ def parse_and_write_data(soup, date, time, not_ML=True):
         
         ## Gather all useful data from unique books
         # consensus_data =  soup.find_all('div', 'el-div eventLine-consensus')[i].get_text()
-        info_A =                soup.find_all('div', attrs = {'class':'el-div eventLine-team'})[i].find_all('div')[0].get_text().strip()
-        hyphen_A =              info_A.find('-')
-        paren_A =               info_A.find("(")
-        team_A =                info_A[:hyphen_A - 1]
-        pitcher_A =             info_A[hyphen_A + 2 : paren_A - 1]
-        hand_A =                info_A[paren_A + 1 : -1]
-        
+        info_A = soup.find_all('div', attrs = {'class':'el-div eventLine-team'})[i].find_all('div')[0].get_text().strip()
+        hyphen_A = info_A.find('-')
+        paren_A = info_A.find("(")
+        team_A = info_A[:hyphen_A - 1]
+        pitcher_A = info_A[hyphen_A + 2 : paren_A - 1]
+        hand_A = info_A[paren_A + 1 : -1]
+
         ## get line/odds info for unique book. Need error handling to account for blank data
         def try_except_book_line(id, i , x):
             try:
@@ -252,34 +278,50 @@ def select_and_rename(df, text):
 
 def main():
     connectTor()
+    
+    # something wrong with the scraper with tor
 
     ## Get today's lines
     todays_date = str(date.today()).replace('-','')
     ## change todays_date to be whatever date you want to pull in the format 'yyyymmdd'
     ## One could force user input and if results in blank, revert to today's date. 
-    # todays_date = '20140611'
+    # todays_date = '20161120'
+
+    # web_dict = {
+    #     'spread' : '',
+    #     'mline' : 'money-line/',
+    #     'total' : 'totals/',
+    #     'full' : '',
+    #     'first_half' : '1st-half/',
+    #     'second_half' : '2nd-half/'
+    #     }
 
     ## store BeautifulSoup info for parsing
-    # try:
-    soup_ml, time_ml = soup_url('ML', todays_date)
-    print("getting today's MoneyLine (1/6)")
-    # except:
-    #     print("couldn't get today's moneyline :(")
-
+    # testing BS parts need to rename some vars
     try:
-        soup_rl, time_rl = soup_url('RL', todays_date)
-        print("getting today's RunLine (2/6)")
+        soup_sf, time_sf = soup_url('spread', 'full', todays_date)
+        print("getting today's full spread (1/9)")
     except:
-        print("couldn't get today's runline :(")
+        soup_sf = ''
+        time_sf = ''
+        print("couldn't get today's full spread")
 
     try:
-        soup_tot, time_tot = soup_url('total', todays_date)
+        soup_sfh, time_sfh = soup_url('spread', 'first_half', todays_date)
+        print("getting today's 1st-half spread (2/9)")
+    except:
+        soup_sfh = ''
+        time_sfh = ''
+        print("couldn't get today's 1st-half spread")
+
+    try:
+        soup_tot, time_tot = soup_url('spread', 'second_half', todays_date)
         print("getting today's totals (3/6)")
     except:
         print("couldn't get today's totals :(")
 
     try:
-        soup_1h_ml, time_1h_ml = soup_url('1H', todays_date)
+        soup_1h_ml, time_1h_ml = soup_url('mline', 'full', todays_date)
         print("getting today's 1st-half MoneyLine (4/6)")
     except:
         soup_1h_ml = ''
@@ -287,7 +329,7 @@ def main():
         print("couldn't get today's 1h ml :(")
 
     try:
-        soup_1h_rl, time_1h_rl = soup_url('1HRL', todays_date)
+        soup_1h_rl, time_1h_rl = soup_url('mline', 'full', todays_date)
         print("getting today's 1st-half RunLine (5/6)")
     except:
         soup_1h_rl = ''
@@ -295,81 +337,58 @@ def main():
         print("couldn't get today's 1h rl :(")
 
     try:
-        soup_1h_tot, time_1h_tot = soup_url('1Htotal', todays_date)
+        soup_1h_tot, time_1h_tot = soup_url('mline', 'first_half', todays_date)
         print("getting today's 1st-half totals (6/6)")
     except:
         soup_1h_tot = ''
         time_1h_tot = ''
         print("couldn't get today's 1h totals :(")
 
+    #testing BS part uncomment below for parsing
     
-    #### Each df_xx creates a data frame for a bet type
-    print("writing today's MoneyLine (1/6)")
-    df_ml = parse_and_write_data(soup_ml, todays_date, time_ml, not_ML = False)
-    ## Change column names to make them unique
-    df_ml.columns = ['key','date','ml_time','H/A','team','pitcher',
-                     'hand','opp_team','opp_pitcher','opp_hand',
-                     'ml_PIN','ml_FD','ml_HER','ml_BVD','ml_BOL']    
+    # #### Each df_xx creates a data frame for a bet type
+    # print("writing today's MoneyLine (1/6)")
+    # df_ml = parse_and_write_data(soup_ml, todays_date, time_ml, not_ML = False)
+    # ## Change column names to make them unique
+    # df_ml.columns = ['key','date','ml_time','H/A','team','pitcher',
+    #                  'hand','opp_team','opp_pitcher','opp_hand',
+    #                  'ml_PIN','ml_FD','ml_HER','ml_BVD','ml_BOL']    
 
-    print("writing today's RunLine (2/6)")
-    df_rl = parse_and_write_data(soup_rl, todays_date, time_rl)
-    df_rl = select_and_rename(df_rl, 'rl')
+    # print("writing today's RunLine (2/6)")
+    # df_rl = parse_and_write_data(soup_rl, todays_date, time_rl)
+    # df_rl = select_and_rename(df_rl, 'rl')
     
-    print("writing today's totals (3/6)")
-    df_tot = parse_and_write_data(soup_tot, todays_date, time_tot)
-    df_tot = select_and_rename(df_tot, 'tot')
+    # print("writing today's totals (3/6)")
+    # df_tot = parse_and_write_data(soup_tot, todays_date, time_tot)
+    # df_tot = select_and_rename(df_tot, 'tot')
     
-    print("writing today's 1st-half MoneyLine (4/6)")
-    df_1h_ml = parse_and_write_data(soup_1h_ml, todays_date, time_1h_ml, not_ML = False)
-    df_1h_ml = select_and_rename(df_1h_ml,'1h_ml')
+    # print("writing today's 1st-half MoneyLine (4/6)")
+    # df_1h_ml = parse_and_write_data(soup_1h_ml, todays_date, time_1h_ml, not_ML = False)
+    # df_1h_ml = select_and_rename(df_1h_ml,'1h_ml')
     
-    # print("writing today's 1st-half RunLine (5/6)")
-    # df_1h_rl = parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl)
-    # df_1h_rl = select_and_rename(df_1h_rl,'1h_rl')
+    # # print("writing today's 1st-half RunLine (5/6)")
+    # # df_1h_rl = parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl)
+    # # df_1h_rl = select_and_rename(df_1h_rl,'1h_rl')
     
-    # print("writing today's 1st-half totals (6/6)")
-    # df_1h_tot = parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot)
-    # df_1h_tot = select_and_rename(df_1h_tot,'1h_tot')
+    # # print("writing today's 1st-half totals (6/6)")
+    # # df_1h_tot = parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot)
+    # # df_1h_tot = select_and_rename(df_1h_tot,'1h_tot')
     
-    ## Merge all DataFrames together to allow for simple printout
-    write_df = df_ml
-    write_df = write_df.merge(
-                df_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    write_df = write_df.merge(
-                df_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    write_df = write_df.merge(
-                df_1h_ml, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # ## Merge all DataFrames together to allow for simple printout
+    # write_df = df_ml
     # write_df = write_df.merge(
-    #             df_1h_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    #             df_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
     # write_df = write_df.merge(
-    #             df_1h_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    #             df_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # write_df = write_df.merge(
+    #             df_1h_ml, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # # write_df = write_df.merge(
+    # #             df_1h_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # # write_df = write_df.merge(
+    # #             df_1h_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
     
-    # with open('\SBR_MLB_Lines.csv', 'a') as f:
-    write_df.to_csv('test_mlb.csv', index=False)#, header = False)
+    # # with open('\SBR_MLB_Lines.csv', 'a') as f:
+    # write_df.to_csv('test_mlb.csv', index=False)#, header = False)
   
-    ## Code to pull tomorrow's data --- work in progress
-    # if time.ml[:2] >= 12:
-        # tomorrows_date = str(datetime.date.today() + datetime.timedelta(days=1)).replace('-','')
-        # ## store BeautifulSoup info for parsing
-        # soup_ml, time_ml = soup_url('ML')
-        # print("getting tomorrow's MoneyLine"
-        # soup_rl, time_rl = soup_url('RL')
-        # print("getting tomorrow's RunLine"
-        # soup_tot, time_tot = soup_url('total')
-        # print("getting tomorrow's totals"
-        # soup_1h_ml, time_1h_ml = soup_url('1H')
-        # print("getting tomorrow's 1st-half MoneyLine"
-        # soup_1h_rl, time_1h_rl = soup_url('1HRL')
-        # print("getting tomorrow's 1st-half RunLine"
-        # soup_1h_tot, time_1h_tot = soup_url('1Htotal')
-        # print("getting tomorrow's 1st-half totals"
-
-        # parse_and_write_data(soup_ml, todays_date, time_ml, f)
-        # parse_and_write_data(soup_rl, todays_date, time_rl, f)
-        # parse_and_write_data(soup_tot, todays_date, time_tot, f)
-        # parse_and_write_data(soup_1h_ml, todays_date, time_1h_ml, f)
-        # parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl, f)
-        # parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot, f)
-
 if __name__ == '__main__':
     main()
