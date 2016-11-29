@@ -55,8 +55,6 @@ def soup_url(type_of_line, period_of_game, tdate=str(date.today()).replace('-', 
     now = datetime.datetime.now()
     raw_data = requests.get(url)
     soup_big = BeautifulSoup(raw_data.text, 'html.parser')
-    # export soup_big and figure out whats going on for nfl
-    # print (soup_big)
     # the oddsgridmodule might change mlb = 3 nlf = 16
     soup = soup_big.find_all('div', id='OddsGridModule_16')[0]
     timestamp = now.strftime("%H:%M:%S")
@@ -131,19 +129,20 @@ def parse_and_write_data(soup, date, time, not_ML=True):
         bovada_A = try_except_book_line('999996', i, 0)
         betonline_A = try_except_book_line('1096', i, 0)
 
-        info_H =                soup.find_all('div', attrs = {'class':'el-div eventLine-team'})[i].find_all('div')[2].get_text().strip()
-        hyphen_H =              info_H.find('-')
-        paren_H =               info_H.find("(")
-        team_H =                info_H[:hyphen_H - 1]
-        pitcher_H =             info_H[hyphen_H + 2 : paren_H - 1]
-        hand_H =                info_H[paren_H + 1 : -1]
+        info_H = soup.find_all('div', attrs = {'class':'el-div eventLine-team'})[i].find_all('div')[2].get_text().strip()
+        hyphen_H = info_H.find('-')
+        paren_H = info_H.find("(")
+        team_H = info_H[:hyphen_H - 1]
+        pitcher_H = info_H[hyphen_H + 2 : paren_H - 1]
+        hand_H = info_H[paren_H + 1 : -1]
 
         pinnacle_H = try_except_book_line('238',i, 1)
         fivedimes_H = try_except_book_line('19',i, 1)
         heritage_H = try_except_book_line('169', i, 1)
         bovada_H = try_except_book_line('999996', i, 1)
         betonline_H = try_except_book_line('1096', i, 1)
-
+        
+        # idk if this is needed for nfl
         short_to_long_abbr = dict()
         short_to_long_abbr['LA'] = 'LAD'
         short_to_long_abbr['SD'] = 'SDG'
@@ -282,67 +281,107 @@ def main():
     # something wrong with the scraper with tor
 
     ## Get today's lines
-    todays_date = str(date.today()).replace('-','')
+    # todays_date = str(date.today()).replace('-', '')
     ## change todays_date to be whatever date you want to pull in the format 'yyyymmdd'
     ## One could force user input and if results in blank, revert to today's date. 
-    # todays_date = '20161120'
-
-    # web_dict = {
-    #     'spread' : '',
-    #     'mline' : 'money-line/',
-    #     'total' : 'totals/',
-    #     'full' : '',
-    #     'first_half' : '1st-half/',
-    #     'second_half' : '2nd-half/'
-    #     }
+    todays_date = '20161120'
 
     ## store BeautifulSoup info for parsing
     # testing BS parts need to rename some vars
-    try:
-        soup_sf, time_sf = soup_url('spread', 'full', todays_date)
-        print("getting today's full spread (1/9)")
-    except:
-        soup_sf = ''
-        time_sf = ''
-        print("couldn't get today's full spread")
 
-    try:
-        soup_sfh, time_sfh = soup_url('spread', 'first_half', todays_date)
-        print("getting today's 1st-half spread (2/9)")
-    except:
-        soup_sfh = ''
-        time_sfh = ''
-        print("couldn't get today's 1st-half spread")
+    # refactoring this part:
 
-    try:
-        soup_tot, time_tot = soup_url('spread', 'second_half', todays_date)
-        print("getting today's totals (3/6)")
-    except:
-        print("couldn't get today's totals :(")
+    line_types = ['spread', 'mline', 'total']
+    time_types = ['full', 'first_half', 'second_half']
+    # apparently this is pep 8
+    soup_list = [0] * len(line_types) * len(time_types)
+    time_list = [0] * len(line_types) * len(time_types)
+    counter = 0
 
-    try:
-        soup_1h_ml, time_1h_ml = soup_url('mline', 'full', todays_date)
-        print("getting today's 1st-half MoneyLine (4/6)")
-    except:
-        soup_1h_ml = ''
-        time_1h_ml = ''
-        print("couldn't get today's 1h ml :(")
+    for l_type in line_types:
+        for t_type in time_types:
+            try:
+                soup_list[counter], time_list[counter] = soup_url(l_type, t_type, todays_date)
+                print("getting today's {} {} ({}/9)".format(t_type, l_type, counter + 1))     
+            except:
+                soup_list[counter] = ''
+                time_list[counter] = ''
+                print("couldn't get today's {} {}".format(t_type, l_type))
 
-    try:
-        soup_1h_rl, time_1h_rl = soup_url('mline', 'full', todays_date)
-        print("getting today's 1st-half RunLine (5/6)")
-    except:
-        soup_1h_rl = ''
-        time_1h_rl = ''
-        print("couldn't get today's 1h rl :(")
+            counter += 1           
 
-    try:
-        soup_1h_tot, time_1h_tot = soup_url('mline', 'first_half', todays_date)
-        print("getting today's 1st-half totals (6/6)")
-    except:
-        soup_1h_tot = ''
-        time_1h_tot = ''
-        print("couldn't get today's 1h totals :(")
+
+    # try:
+    #     soup_sf, time_sf = soup_url('spread', 'full', todays_date)
+    #     print("getting today's full spread (1/9)")
+    # except:
+    #     soup_sf = ''
+    #     time_sf = ''
+    #     print("couldn't get today's full spread")
+
+    # try:
+    #     soup_sfh, time_sfh = soup_url('spread', 'first_half', todays_date)
+    #     print("getting today's 1st-half spread (2/9)")
+    # except:
+    #     soup_sfh = ''
+    #     time_sfh = ''
+    #     print("couldn't get today's 1st-half spread")
+
+    # try:
+    #     soup_ssh, time_ssh = soup_url('spread', 'second_half', todays_date)
+    #     print("getting today's 2nd-half spread (3/9)")
+    # except:
+    #     soup_ssh = ''
+    #     time_ssh = ''
+    #     print("couldn't get today's 2nd-half spread")
+
+    # try:
+    #     soup_mlf, time_mlf = soup_url('mline', 'full', todays_date)
+    #     print("getting today's full moneyline (4/9)")
+    # except:
+    #     soup_mlf = ''
+    #     time_mlf = ''
+    #     print("couldn't get today's full moneyline")
+
+    # try:
+    #     soup_mlfh, time_mlfh = soup_url('mline', 'first_half', todays_date)
+    #     print("getting today's 1st-half moneyline (5/9)")
+    # except:
+    #     soup_mlfh = ''
+    #     time_mlfh = ''
+    #     print("couldn't get today's 1st-half moneyline")
+
+    # try:
+    #     soup_mlsh, time_mlsh = soup_url('mline', 'second_half', todays_date)
+    #     print("getting today's 2nd-half moneyline (6/9)")
+    # except:
+    #     soup_mlsh = ''
+    #     time_mlsh = ''
+    #     print("couldn't get today's 2nd-half moneyline")
+
+    # try:
+    #     soup_tf, time_tf = soup_url('total', 'full', todays_date)
+    #     print("getting today's full total (7/9)")
+    # except:
+    #     soup_tf = ''
+    #     time_tf = ''
+    #     print("couldn't get today's full total")
+
+    # try:
+    #     soup_tfh, time_tfh = soup_url('total', 'first_half', todays_date)
+    #     print("getting today's 1st-half total (8/9)")
+    # except:
+    #     soup_tfh = ''
+    #     time_tfh = ''
+    #     print("couldn't get today's 1st-half total")
+
+    # try:
+    #     soup_tsh, time_tsh = soup_url('total', 'second_half', todays_date)
+    #     print("getting today's 2nd-half total (9/9)")
+    # except:
+    #     soup_tsh = ''
+    #     time_tsh = ''
+    #     print("couldn't get today's 2nd-half total")
 
     #testing BS part uncomment below for parsing
     
