@@ -1,6 +1,5 @@
 import datetime
 from datetime import date
-import time
 import socket
 import socks
 import win_inet_pton
@@ -19,16 +18,22 @@ import pandas as pd
 # nfl mod for sbr scraper
 
 def connectTor():
-## Connect to Tor for privacy purposes
-# will need to change this
+    '''
+    Connect to Tor for privacy purposes
+    will need to change this
+    '''
     socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, '127.0.0.1', 9150, True)
     socket.socket = socks.socksocket
-    print("connected to Tor!")
+    print "connected to Tor!"
 
 def soup_url(type_of_line, period_of_game, tdate=str(date.today()).replace('-', '')):
-## get html code for odds based on desired line type and date
-# most likely will need to change function to just accept a date
+    '''
+    inputs: type of line (string), period_of_game (string) time period
+    get html code for odds based on desired line type and date
+    most likely will need to change function to just accept a date
+    '''
 
+    # dict to map type of lines and period of game
     web_dict = {
         'spread' : '',
         'mline' : 'money-line/',
@@ -41,24 +46,32 @@ def soup_url(type_of_line, period_of_game, tdate=str(date.today()).replace('-', 
     url_gametype = web_dict[type_of_line]
     url_time_period = web_dict[period_of_game]
 
-    # for testing:
-    # tdate = '20160925'
+    # this is the url for nba, change here for other sports
     url = 'http://www.sportsbookreview.com/betting-odds/nfl-football/' +  \
         url_gametype + url_time_period + '?date=' + tdate
-    # print (url)
-    now = datetime.datetime.now()
+
     raw_data = requests.get(url)
     soup_big = BeautifulSoup(raw_data.text, 'html.parser')
-    # the oddsgridmodule might change mlb = 3 nlf = 16
+
+    # the oddsgridmodule changes, mlb = 3 nlf = 16
     soup = soup_big.find_all('div', id='OddsGridModule_16')[0]
+    # add in time stamp for when data was scraped
+    now = datetime.datetime.now()
     timestamp = now.strftime("%H:%M:%S")
 
     return soup, timestamp
 
 def replace_unicode(string):
+    '''
+    takes a string and replaces formating with decimal numbers
+    '''
     return string.replace(u'\xa0', ' ').replace(u'\xbd', '.5')
 
 def map_team_names(team_name):
+    '''
+    input string, output string
+    maps city to team city abbrev
+    '''
     team_map_dict = {
         'Arizona'  : 'ARI',
         'Atlanta' : 'ATL',
@@ -96,46 +109,55 @@ def map_team_names(team_name):
     }
     return team_map_dict[team_name]
 
-def parse_and_write_data(soup, date, time, not_ML=True):
+def parse_and_write_data(soup, date, time, not_ml=True):
 
 # Parse HTML to gather line data by book
     def book_line(book_id, line_id, homeaway):
-        ## Get Line info from book ID
-        line = soup.find_all('div', attrs = {'class':'el-div eventLine-book', 'rel':book_id})[line_id].find_all('div')[homeaway].get_text().strip()
+        '''
+        Get Line info from book ID
+        needs book_id, type of line, and if team is home or away
+
+        BookID  BookName
+        238     Pinnacle
+        19      5Dimes
+        93      Bookmaker
+        1096    BetOnline
+        169     Heritage
+        123     BetDSI
+        999996  Bovada
+        139     Youwager
+        999991  SIA
+        '''
+        line = soup.find_all('div', attrs={'class':'el-div eventLine-book', 'rel':book_id})[line_id].find_all('div')[homeaway].get_text().strip()
         return line
     '''
-    BookID  BookName
-    238     Pinnacle
-    19      5Dimes
-    93      Bookmaker
-    1096    BetOnline
-    169     Heritage
-    123     BetDSI
-    999996  Bovada
-    139     Youwager
-    999991  SIA
+    
     '''
     #  need to decide what cols we want here for nfl, mostly the same except there is no line for ML
-    if not_ML:
-        df = pd.DataFrame(
-                columns=('key', 'date', 'time', 'h/a',
-                         'team', 'opp_team',
-                         'pinnacle_line', 'pinnacle_odds',
-                         '5dimes_line', '5dimes_odds',
-                         'heritage_line', 'heritage_odds',
-                         'bovada_line', 'bovada_odds',
-                         'betonline_line', 'betonline_odds'))
+    if not_ml:
+        df_info = pd.DataFrame(
+            columns=('key', 'date', 'time', 'h/a',
+                     'team', 'opp_team',
+                     'pinnacle_line', 'pinnacle_odds',
+                     '5dimes_line', '5dimes_odds',
+                     'heritage_line', 'heritage_odds',
+                     'bovada_line', 'bovada_odds',
+                     'betonline_line', 'betonline_odds'))
     else:
-        df = pd.DataFrame(
+        df_info = pd.DataFrame(
             columns=('key', 'date', 'time', 'h/a',
                      'team', 'opp_team', 'pinnacle', '5dimes',
                      'heritage', 'bovada', 'betonline'))
     # end of thought
 
     ## get line/odds info for unique book. Need error handling to account for blank data
-    def try_except_book_line(id, i, x):
+    def try_except_book_line(book_id, i, h_a):
+        '''
+        tries to find the book line
+        need to deal with what happens when nothign is returned
+        '''
         try:
-            return book_line(id, i, x)
+            return book_line(book_id, i, h_a)
         except IndexError:
             return ''
 
@@ -144,7 +166,7 @@ def parse_and_write_data(soup, date, time, not_ML=True):
     for i in range(0, number_of_games):
         away_info_list = []
         home_info_list = []
-        print(str(i+1) + '/' + str(number_of_games))
+        print str(i+1) + '/' + str(number_of_games)
 
         ## Gather all useful data from unique books
         # consensus_data =  soup.find_all('div', 'el-div eventLine-consensus')[i].get_text()
@@ -175,7 +197,7 @@ def parse_and_write_data(soup, date, time, not_ML=True):
 
         # this one will be for away, next will be home maybe could combine but w/e
         for book_a in book_away:
-            if not_ML:
+            if not_ml:
                 book_a = replace_unicode(book_a)
                 book_line_a = book_a[:book_a.find(' ')]
                 book_odds_a = book_a[book_a.find(' ') + 1:]
@@ -192,7 +214,7 @@ def parse_and_write_data(soup, date, time, not_ML=True):
         home_info_list.append(team_a)
 
         for book_h in book_home:
-            if not_ML:
+            if not_ml:
                 book_h = replace_unicode(book_h)
                 book_line_h = book_h[:book_h.find(' ')]
                 book_odds_h = book_h[book_h.find(' ') + 1:]
@@ -202,39 +224,46 @@ def parse_and_write_data(soup, date, time, not_ML=True):
                 home_info_list.append(replace_unicode(book_h))
 
         ## Take data from A and H (lists) and put them into DataFrame
-        df.loc[counter] = ([away_info_list[j] for j in range(0, len(away_info_list))])
-        df.loc[counter+1] = ([home_info_list[j] for j in range(0, len(home_info_list))])
+        df_info.loc[counter] = ([away_info_list[j] for j in range(0, len(away_info_list))])
+        df_info.loc[counter+1] = ([home_info_list[j] for j in range(0, len(home_info_list))])
         counter += 2
 
-    return df
+    return df_info
 
-def select_and_rename(df, text):
-    ## Select only useful column names from a DataFrame
-    ## Rename column names so that when merged, each df will be unique
-    # print text
-    # print df
-    if text[:2] == 'ml':
-        df = df[['key', 'time', 'team', 'opp_team', 'pinnacle',
-                 '5dimes', 'heritage', 'bovada', 'betonline']]
+def select_and_rename(df_info, line_str):
+    '''
+    inputs: df of line info, line_str is the type of line in string
+    Select only useful column names from a DataFrame
+    Rename column names so that when merged, each df will be unique
+    '''
+
+    if line_str[:2] == 'ml':
+        df_info = df_info[['key', 'time', 'team', 'opp_team', 'pinnacle',
+                           '5dimes', 'heritage', 'bovada', 'betonline']]
     ## Change column names to make them unique
-        df.columns = ['key', text + '_time', 'team', 'opp_team',
-                      text + '_PIN', text + '_FD', text + '_HER', text + '_BVD', text + '_BOL']
+        df_info.columns = ['key', line_str + '_time', 'team', 'opp_team',
+                           line_str + '_PIN', line_str + '_FD', line_str + '_HER',
+                           line_str + '_BVD', line_str + '_BOL']
     else:
-        df = df[['key', 'time', 'team', 'opp_team',
-                 'pinnacle_line', 'pinnacle_odds',
-                 '5dimes_line', '5dimes_odds',
-                 'heritage_line', 'heritage_odds',
-                 'bovada_line', 'bovada_odds',
-                 'betonline_line', 'betonline_odds']]
-        df.columns = ['key', text + '_time', 'team', 'opp_team',
-                      text + '_PIN_line', text + '_PIN_odds',
-                      text + '_FD_line', text + '_FD_odds',
-                      text + '_HER_line', text + '_HER_odds',
-                      text + '_BVD_line', text + '_BVD_odds',
-                      text + '_BOL_line', text + '_BOL_odds']
-    return df
+        df_info = df_info[['key', 'time', 'team', 'opp_team',
+                           'pinnacle_line', 'pinnacle_odds',
+                           '5dimes_line', '5dimes_odds',
+                           'heritage_line', 'heritage_odds',
+                           'bovada_line', 'bovada_odds',
+                           'betonline_line', 'betonline_odds']]
+        df_info.columns = ['key', line_str + '_time', 'team', 'opp_team',
+                           line_str + '_PIN_line', line_str + '_PIN_odds',
+                           line_str + '_FD_line', line_str + '_FD_odds',
+                           line_str + '_HER_line', line_str + '_HER_odds',
+                           line_str + '_BVD_line', line_str + '_BVD_odds',
+                           line_str + '_BOL_line', line_str + '_BOL_odds']
+    return df_info
 
 def main():
+    '''
+    main function will need to modify in order to build full database and cron job
+    '''
+
     connectTor()
 
     # something wrong with the scraper with tor
@@ -259,77 +288,34 @@ def main():
         for t_type in time_types:
             try:
                 soup_list[counter], time_list[counter] = soup_url(l_type, t_type, todays_date)
-                print("getting today's {} {} ({}/9)".format(t_type, l_type, counter + 1))
+                print "getting today's {} {} ({}/9)".format(t_type, l_type, counter + 1)
             except:
                 soup_list[counter] = ''
                 time_list[counter] = ''
-                print("couldn't get today's {} {}".format(t_type, l_type))
+                print "couldn't get today's {} {}".format(t_type, l_type)
 
             counter += 1
 
-    #testing BS part uncomment below for parsing
-# will need to run thru names
+    # testing BS part uncomment below for parsing
+    # will need to run thru names
     line_names = ['sf', 'sfh', 'ssh', 'mlf', 'mlfh', 'mlsh', 'tf', 'tfh', 'tsh']
     ml_bool_list = [True, True, True, False, False, False, True, True, True]
- 
+
     write_df = pd.DataFrame()
 
     # loop (call parse_and_write_data and select_and_rename) then merge to df
     for i, soup_l in enumerate(soup_list):
-        print("writing today's {} ({}/9)".format(line_names[i], i + 1))
-        df_data_temp = parse_and_write_data(soup_l, todays_date, time_list[i], not_ML=ml_bool_list[i])
+        print "writing today's {} ({}/9)".format(line_names[i], i + 1)
+        df_data_temp = parse_and_write_data(soup_l, todays_date, time_list[i], not_ml=ml_bool_list[i])
         df_data_temp = select_and_rename(df_data_temp, line_names[i])
         # merge into write df
         if write_df.empty:
             write_df = df_data_temp
         else:
-            write_df = write_df.merge(df_data_temp, how='left', on = ['key', 'team', 'opp_team'])
-        
-        # print write_df
+            write_df = write_df.merge(df_data_temp, how='left', on=['key', 'team', 'opp_team'])
 
-    # #### Each df_xx creates a data frame for a bet type
-    # print("writing today's MoneyLine (1/6)")
-    # df_ml = parse_and_write_data(soup_ml, todays_date, time_ml, not_ML = False)
-    # ## Change column names to make them unique
-    # df_ml.columns = ['key','date','ml_time','h/a','team','pitcher',
-    #                  'hand','opp_team','opp_pitcher','opp_hand',
-    #                  'ml_PIN','ml_FD','ml_HER','ml_BVD','ml_BOL']
-
-    # print("writing today's RunLine (2/6)")
-    # df_rl = parse_and_write_data(soup_rl, todays_date, time_rl)
-    # df_rl = select_and_rename(df_rl, 'rl')
-
-    # print("writing today's totals (3/6)")
-    # df_tot = parse_and_write_data(soup_tot, todays_date, time_tot)
-    # df_tot = select_and_rename(df_tot, 'tot')
-    
-    # print("writing today's 1st-half MoneyLine (4/6)")
-    # df_1h_ml = parse_and_write_data(soup_1h_ml, todays_date, time_1h_ml, not_ML = False)
-    # df_1h_ml = select_and_rename(df_1h_ml,'1h_ml')
-    
-    # # print("writing today's 1st-half RunLine (5/6)")
-    # # df_1h_rl = parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl)
-    # # df_1h_rl = select_and_rename(df_1h_rl,'1h_rl')
-    
-    # # print("writing today's 1st-half totals (6/6)")
-    # # df_1h_tot = parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot)
-    # # df_1h_tot = select_and_rename(df_1h_tot,'1h_tot')
-    
-    # ## Merge all DataFrames together to allow for simple printout
-    # write_df = df_ml
-    # write_df = write_df.merge(
-    #             df_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    # write_df = write_df.merge(
-    #             df_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    # write_df = write_df.merge(
-    #             df_1h_ml, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    # # write_df = write_df.merge(
-    # #             df_1h_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    # # write_df = write_df.merge(
-    # #             df_1h_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    
     # # with open('\SBR_MLB_Lines.csv', 'a') as f:
     # write_df.to_csv('test_mlb.csv', index=False)#, header = False)
-  
+
 if __name__ == '__main__':
     main()
