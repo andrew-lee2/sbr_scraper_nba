@@ -58,6 +58,44 @@ def soup_url(type_of_line, period_of_game, tdate=str(date.today()).replace('-', 
 def replace_unicode(string):
     return string.replace(u'\xa0', ' ').replace(u'\xbd', '.5')
 
+def map_team_names(team_name):
+    team_map_dict = {
+        'Arizona'  : 'ARI',
+        'Atlanta' : 'ATL',
+        'Baltimore' : 'BAL',
+        'Buffalo' : 'BUF',
+        'Carolina' : 'CAR',
+        'Chicago' : 'CHI',
+        'Cincinnati' : 'CIN',
+        'Cleveland' : 'CLE',
+        'Dallas' : 'DAL',
+        'Denver' : 'DEN',
+        'Detroit' : 'DET',
+        'Green Bay' : 'GB',
+        'Houston' : 'HOU',
+        'Indianapolis' : 'IND',
+        'Jacksonville' : 'JAC',
+        'Kansas City' : 'KC',
+        'Los Angeles' : 'LAM',
+        'Miami' : 'MIA',
+        'Minnesota' : 'MIN',
+        'New England' : 'NE',
+        'New Orleans' : 'NO',
+        'N.Y. Giants' : 'NYG',
+        'N.Y. Jets' : 'NYJ',
+        'Oakland' : 'OAK',
+        'Philadelphia' : 'PHI',
+        'Pittsburgh' : 'PIT',
+        'San Diego' : 'SD',
+        'Seattle' : 'SEA',
+        'San Francisco' : 'SF',
+        'St. Louis' : 'STL',
+        'Tampa Bay' : 'TB',
+        'Tennessee' : 'TEN',
+        'Washington' : 'WAS'
+    }
+    return team_map_dict[team_name]
+
 def parse_and_write_data(soup, date, time, not_ML=True):
 
 # Parse HTML to gather line data by book
@@ -115,7 +153,10 @@ def parse_and_write_data(soup, date, time, not_ML=True):
         team_a = soup.find_all('div', attrs={'class':'el-div eventLine-team'})[i].find_all('div')[0].get_text().strip()
         team_h = soup.find_all('div', attrs={'class':'el-div eventLine-team'})[i].find_all('div')[1].get_text().strip()
 
-        # generalize
+        # right here write and call new function that will map to abbrevs
+        team_a = map_team_names(team_a)
+        team_h = map_team_names(team_h)
+
         # home (1) and away (0)
         book_num_list = ['238', '19', '169', '999996', '1096']
         book_away = [0] * len(book_num_list)
@@ -123,21 +164,6 @@ def parse_and_write_data(soup, date, time, not_ML=True):
         for j, num in enumerate(book_num_list):
             book_away[j] = try_except_book_line(num, i, 0)
             book_home[j] = try_except_book_line(num, i, 1)
-
-        print book_away
-        print book_home
-        # pinnacle_A = try_except_book_line('238', i, 0)
-        # fivedimes_A = try_except_book_line('19', i, 0)
-        # heritage_A = try_except_book_line('169', i, 0)
-        # bovada_A = try_except_book_line('999996', i, 0)
-        # betonline_A = try_except_book_line('1096', i, 0)
-
-        # # generalize
-        # pinnacle_H = try_except_book_line('238', i, 1)
-        # fivedimes_H = try_except_book_line('19', i, 1)
-        # heritage_H = try_except_book_line('169', i, 1)
-        # bovada_H = try_except_book_line('999996', i, 1)
-        # betonline_H = try_except_book_line('1096', i, 1)
 
         # i think this is the key?
         away_info_list.append(str(date) + '_' + team_a.replace(u'\xa0', ' ') + '_' + team_h.replace(u'\xa0', ' '))
@@ -176,18 +202,18 @@ def parse_and_write_data(soup, date, time, not_ML=True):
                 home_info_list.append(replace_unicode(book_h))
 
         ## Take data from A and H (lists) and put them into DataFrame
-        print away_info_list
-        print home_info_list
         df.loc[counter] = ([away_info_list[j] for j in range(0, len(away_info_list))])
         df.loc[counter+1] = ([home_info_list[j] for j in range(0, len(home_info_list))])
         counter += 2
+
     return df
 
 def select_and_rename(df, text):
     ## Select only useful column names from a DataFrame
     ## Rename column names so that when merged, each df will be unique
-
-    if text[-2:] == 'ml':
+    # print text
+    # print df
+    if text[:2] == 'ml':
         df = df[['key', 'time', 'team', 'opp_team', 'pinnacle',
                  '5dimes', 'heritage', 'bovada', 'betonline']]
     ## Change column names to make them unique
@@ -245,6 +271,7 @@ def main():
 # will need to run thru names
     line_names = ['sf', 'sfh', 'ssh', 'mlf', 'mlfh', 'mlsh', 'tf', 'tfh', 'tsh']
     ml_bool_list = [True, True, True, False, False, False, True, True, True]
+ 
     write_df = pd.DataFrame()
 
     # loop (call parse_and_write_data and select_and_rename) then merge to df
@@ -253,7 +280,12 @@ def main():
         df_data_temp = parse_and_write_data(soup_l, todays_date, time_list[i], not_ML=ml_bool_list[i])
         df_data_temp = select_and_rename(df_data_temp, line_names[i])
         # merge into write df
-        write_df = write_df.merge(df_data_temp, how='left', on = ['key', 'team', 'opp_team'])
+        if write_df.empty:
+            write_df = df_data_temp
+        else:
+            write_df = write_df.merge(df_data_temp, how='left', on = ['key', 'team', 'opp_team'])
+        
+        # print write_df
 
     # #### Each df_xx creates a data frame for a bet type
     # print("writing today's MoneyLine (1/6)")
