@@ -1,5 +1,6 @@
-# import socket
-# import socks
+import socket
+import socks
+import win_inet_pton
 import requests
 from bs4 import BeautifulSoup
 import datetime
@@ -24,19 +25,22 @@ def soup_url(type_of_line, tdate = str(date.today()).replace('-','')):
     web_url['1HRL'] = 'pointspread/1st-half'
     web_url['1Htotal'] = 'totals/1st-half'
     url_addon = web_url[type_of_line]
-
-    url = 'http://www.sportsbookreview.com/betting-odds/mlb-baseball/' + url_addon + '?date=' + tdate
+    tdate = '20160925'
+    url = 'http://www.sportsbookreview.com/betting-odds/mlb-baseball/' \
+         + url_addon + '?date=' + tdate
+    # print (url)
     now = datetime.datetime.now()
     raw_data = requests.get(url)
     soup_big = BeautifulSoup(raw_data.text, 'html.parser')
     soup = soup_big.find_all('div', id='OddsGridModule_3')[0]
     timestamp = time.strftime("%H:%M:%S")
+
     return soup, timestamp
 
 def replace_unicode(string):
-    return string.replace(u'\xa0',' ').replace(u'\xbd','.5')
+    return string.replace(u'\xa0', ' ').replace(u'\xbd', '.5')
 
-def parse_and_write_data(soup, date, time, not_ML = True):
+def parse_and_write_data(soup, date, time, not_ML=True):
 ## Parse HTML to gather line data by book
     def book_line(book_id, line_id, homeaway):
         ## Get Line info from book ID
@@ -247,7 +251,7 @@ def select_and_rename(df, text):
     
 
 def main():
-    # connectTor()
+    connectTor()
 
     ## Get today's lines
     todays_date = str(date.today()).replace('-','')
@@ -256,11 +260,11 @@ def main():
     # todays_date = '20140611'
 
     ## store BeautifulSoup info for parsing
-    try:
-        soup_ml, time_ml = soup_url('ML', todays_date)
-        print("getting today's MoneyLine (1/6)")
-    except:
-        print("couldn't get today's moneyline :(")
+    # try:
+    soup_ml, time_ml = soup_url('ML', todays_date)
+    print("getting today's MoneyLine (1/6)")
+    # except:
+    #     print("couldn't get today's moneyline :(")
 
     try:
         soup_rl, time_rl = soup_url('RL', todays_date)
@@ -319,13 +323,13 @@ def main():
     df_1h_ml = parse_and_write_data(soup_1h_ml, todays_date, time_1h_ml, not_ML = False)
     df_1h_ml = select_and_rename(df_1h_ml,'1h_ml')
     
-    print("writing today's 1st-half RunLine (5/6)")
-    df_1h_rl = parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl)
-    df_1h_rl = select_and_rename(df_1h_rl,'1h_rl')
+    # print("writing today's 1st-half RunLine (5/6)")
+    # df_1h_rl = parse_and_write_data(soup_1h_rl, todays_date, time_1h_rl)
+    # df_1h_rl = select_and_rename(df_1h_rl,'1h_rl')
     
-    print("writing today's 1st-half totals (6/6)")
-    df_1h_tot = parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot)
-    df_1h_tot = select_and_rename(df_1h_tot,'1h_tot')
+    # print("writing today's 1st-half totals (6/6)")
+    # df_1h_tot = parse_and_write_data(soup_1h_tot, todays_date, time_1h_tot)
+    # df_1h_tot = select_and_rename(df_1h_tot,'1h_tot')
     
     ## Merge all DataFrames together to allow for simple printout
     write_df = df_ml
@@ -335,13 +339,13 @@ def main():
                 df_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
     write_df = write_df.merge(
                 df_1h_ml, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    write_df = write_df.merge(
-                df_1h_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
-    write_df = write_df.merge(
-                df_1h_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # write_df = write_df.merge(
+    #             df_1h_rl, how='left', on = ['key','team','pitcher','hand','opp_team'])
+    # write_df = write_df.merge(
+    #             df_1h_tot, how='left', on = ['key','team','pitcher','hand','opp_team'])
     
-    with open('\SBR_MLB_Lines.csv', 'a') as f:
-        write_df.to_csv(f, index=False)#, header = False)
+    # with open('\SBR_MLB_Lines.csv', 'a') as f:
+    write_df.to_csv('test_mlb.csv', index=False)#, header = False)
   
     ## Code to pull tomorrow's data --- work in progress
     # if time.ml[:2] >= 12:
