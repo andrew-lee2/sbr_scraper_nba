@@ -9,3 +9,5 @@ BeautifulSoup4
 Pandas
 
 Note: you must either have Tor open when running this code or you must comment out that section of code prior to running.
+
+this is a refactoring of https://github.com/SharpChiCity/SBRscraper. moving this to private repo for other work.
